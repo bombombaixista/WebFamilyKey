@@ -1,58 +1,42 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using WebFamilyKey2.Data;
+using WebFamilyKey2.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Adiciona suporte a Controllers de API
+// Add services
 builder.Services.AddControllers();
 
-// Configuração do DbContext com PostgreSQL
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Swagger para testar os endpoints
+// ✅ Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ✅ Banco de dados (PostgreSQL no Railway)
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 var app = builder.Build();
 
-// ✅ Aplica migrations automaticamente no startup
+// ✅ Seed Data: cria Tenant inicial se não existir
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
-}
 
-// Configure o pipeline HTTP
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    if (!db.Tenants.Any())
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "WebFamilyKey2 API v1");
-        c.RoutePrefix = string.Empty; // 👉 faz o Swagger abrir direto na raiz "/"
-    });
-}
-else
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "WebFamilyKey2 API v1");
-        c.RoutePrefix = string.Empty; // 👉 também abre direto em produção
-    });
-
-    app.UseExceptionHandler("/Error");
-    app.UseHsts();
+        db.Tenants.Add(new Tenant { Name = "Default Tenant" });
+        db.SaveChanges();
+    }
 }
 
+// ✅ Swagger habilitado em qualquer ambiente (dev e produção)
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// Middlewares padrão
 app.UseHttpsRedirection();
-
-app.UseRouting();
-
 app.UseAuthorization();
 
-// Mapeia os controllers da API
 app.MapControllers();
-
 app.Run();
